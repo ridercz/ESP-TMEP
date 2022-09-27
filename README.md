@@ -2,6 +2,8 @@
 
 ESP-TMEP is firmware for ESP8266, which can measure temperature using DS18B20 and send it to the [TMEP.CZ](https://www.tmep.cz/) online service.
 
+> Build video and basic information about this project (in Czech) is [on my blog](https://www.altair.blog/2022/09/esp-tmep).
+
 ## Features and limitations
 
 ### Features
