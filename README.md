@@ -41,9 +41,19 @@ D2      | DQ      | yellow
 
 Additionally connect 4k7 resistor between VDD/5V and DQ/D2.
 
+![Board photo](ESP-TMEP-photo-01.jpg)
+
+![Board photo](ESP-TMEP-photo-02.jpg)
+
 ## Case
 
 I'm using this [WeMos D1 mini Enclosure](https://www.printables.com/model/44083-wemos-d1-mini-enclosure) by [100prznt](https://www.printables.com/social/23641-100prznt/about).
+
+![Enclosure photo](ESP-TMEP-photo-03.jpg)
+
+![Enclosure photo](ESP-TMEP-photo-04.jpg)
+
+![Enclosure photo](ESP-TMEP-photo-05.jpg)
 
 ## Software
 
