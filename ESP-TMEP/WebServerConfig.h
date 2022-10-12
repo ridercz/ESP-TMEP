@@ -15,7 +15,7 @@
 
 // The stylesheet
 #define HTML_CSS "html { font-family: Arial, Helvetica, sans-serif; font-size: 16px; background-color: #333; margin: 0; padding: 0; }\
-body { background-color: #eee; color: #333; margin: 0 auto; padding: 0; text-align: center; max-width: 500px; min-height: 100vw; }\
+body { background-color: #eee; color: #333; margin: 0 auto; padding: 0; text-align: center; max-width: 500px; min-height: 100vh; }\
 h1 { font-size: 200%; font-weight: normal; margin: 0; padding: 1ex; background-color: #c00; color: #fff; }\
 a:link, a:visited {color: #c00; }\
 a:hover, a:active {color: #f00; }\
