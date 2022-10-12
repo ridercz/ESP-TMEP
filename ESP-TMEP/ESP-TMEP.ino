@@ -230,8 +230,11 @@ void handleReset() {
     html += "<p>System will reset to configuration mode. Connect to the following WiFi network:</p><p><code>";
     html += deviceId;
     html += "</code></p>";
+  } else if (pinTriesRemaining == 0) {
+    Serial.println("Incorrect PIN entered, system locked");
+    html += "<p>Incorrect PIN was entered. System is locked until next reboot.</p>" html += "<p class=\"link\"><a href=\"/\">Back</a></p>";
   } else {
-    if (pinTriesRemaining > 0) pinTriesRemaining--;
+    pinTriesRemaining--;
     Serial.printf("Incorrect PIN entered, %i tries remaining\n", pinTriesRemaining);
     html += "<p>Incorrect PIN was entered. ";
     html += pinTriesRemaining;
