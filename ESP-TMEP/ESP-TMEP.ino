@@ -50,6 +50,8 @@ float lastTemp;
 char deviceId[20];
 int pinTriesRemaining = PIN_LOCKOUT_LIMIT;
 
+// Initialization
+
 void setup() {
   // Init serial port
   Serial.begin(9600);
@@ -130,6 +132,8 @@ void setup() {
   Serial.printf("Configuration PIN: %s\n", configPin);
 }
 
+// Main loop
+
 void loop() {
   // Process HTTP requests
   server.handleClient();
@@ -168,6 +172,8 @@ void loop() {
   // Schedule next loop
   nextLoopTime = millis() + LOOP_INTERVAL;
 }
+
+// HTTP server URI handlers
 
 void handleHome() {
   Serial.println("Serving URI /");
@@ -267,6 +273,8 @@ void sendCommonHttpHeaders() {
   server.sendHeader("Server", "ESP-TMEP/" VERSION);
 }
 
+// Remote server communication
+
 bool sendValueToRemoteServer() {
   BearSSL::WiFiClientSecure client;
   client.setInsecure();  // Ignore invalid certificates, we are not able to validate chain correctly anyway
@@ -296,6 +304,8 @@ bool sendValueToRemoteServer() {
   return true;
 }
 
+// Helper methods
+
 void blinkLed(int count) {
   for (int i = 0; i < count; i++) {
     digitalWrite(PIN_LED, false);
@@ -304,6 +314,8 @@ void blinkLed(int count) {
     delay(LED_INTERVAL);
   }
 }
+
+// Configuration file operations
 
 void saveConfigFile() {
   // Create a JSON document
@@ -390,6 +402,8 @@ void deleteConfigFile() {
   SPIFFS.remove(JSON_CONFIG_FILE);
   Serial.println("OK");
 }
+
+// WiFiManager callbacks
 
 void saveConfigCallback() {
   shouldSaveConfig = true;
