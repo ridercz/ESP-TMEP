@@ -15,7 +15,6 @@
 #include "WebServerConfig.h"
 
 #define VERSION "2.0.0"                              // Version string
-#define MEASURE_INTERVAL 60000                       // Interval in ms in which temperature is measured
 #define PIN_ONEWIRE D2                               // Pin where sensors are connected
 #define PIN_LED LED_BUILTIN                          // Pin where LED is connected
 #define LED_INTERVAL 250                             // LED blink interval
@@ -24,10 +23,10 @@
 #define REMOTE_PORT 443                              // Remote server HTTPS port
 #define REMOTE_HOST_DEFAULT "demo.tmep.cz"           // Remote server name
 #define REMOTE_PATH_DEFAULT "/?temp="                // Remote server path prefix
+#define REMOTE_SEND_INTERVAL 60000                   // Interval in ms in which temperature is sent to server
 #define JSON_CONFIG_FILE "/config-" VERSION ".json"  // SPIFFS configuration file name
 #define PIN_LOCKOUT_LIMIT 3                          // Number of PIN tries until lockout
-//#define WIFIMANAGER_RESET_SETTINGS                 // Uncomment for reset of Wi-Fi settings
-//#define WIFIMANAGER_DEBUG                          // Uncomment for showing WiFiManager debug messages
+#define WIFIMANAGER_DEBUG false                      // Set to true to show WiFiManager debug messages
 
 // Define configuration variables
 char remoteHost[100] = REMOTE_HOST_DEFAULT;
@@ -43,8 +42,8 @@ ESP8266WebServer server(HTTP_PORT);
 // Define variables
 DeviceAddress lastDeviceAddress;
 bool shouldSaveConfig = false;
-unsigned long nextMeasureTime = 0;
-unsigned long nextBlinkTime = 0;
+unsigned long nextSendTime = 0;
+unsigned long nextLoopTime = 0;
 unsigned long resetTime = 0;
 bool resetRequested = false;
 float lastTemp;
@@ -75,15 +74,7 @@ void setup() {
   bool configLoaded = loadConfigFile();
 
   // Configure WiFiManager options
-#ifdef WIFIMANAGER_DEBUG
-  wm.setDebugOutput(true);
-#else
-  wm.setDebugOutput(false);
-#endif
-#ifdef WIFIMANAGER_RESET_SETTINGS
-  Serial.println("Resetting WiFi manager settings...");
-  wm.resetSettings();
-#endif
+  wm.setDebugOutput(WIFIMANAGER_DEBUG);
   wm.setSaveConfigCallback(saveConfigCallback);
   wm.setAPCallback(configModeCallback);
   WiFiManagerParameter remoteHostTB("remote_host", "Remote host name", remoteHost, sizeof(remoteHost));
@@ -147,32 +138,32 @@ void loop() {
   if (resetRequested && millis() > resetTime) ESP.reset();
 
   // Check if it's time to do more work
-  if (millis() < nextBlinkTime) return;
-
-  // Measure temperature
-  if (millis() > nextMeasureTime) {
-    DeviceAddress addr;
-    sensors.requestTemperatures();
-    if (sensors.getAddress(addr, 0)) {
-      lastTemp = sensors.getTempC(addr);
-      Serial.printf("Temperature: %.2f\n", lastTemp);
-    } else {
-      // Failed to measure temperature - blink twice
-      Serial.print("Temperature: Error!\n");
-      blinkLed(1);
-      return;
-    }
-
-    // Send it to TMEP service
-    if (!sendValueToRemoteServer()) return;
-
-    // Schedule next measurement
-    nextMeasureTime = millis() + MEASURE_INTERVAL;
-  }
+  if (millis() < nextLoopTime) return;
 
   // Blink LED once
   blinkLed(1);
-  nextBlinkTime = millis() + LOOP_INTERVAL;
+
+  // Measure temperature
+  DeviceAddress addr;
+  sensors.requestTemperatures();
+  if (sensors.getAddress(addr, 0)) {
+    lastTemp = sensors.getTempC(addr);
+    Serial.printf("Temperature: %.2f\n", lastTemp);
+  } else {
+    // Failed to measure temperature - blink twice
+    Serial.print("Temperature: Error!\n");
+    blinkLed(1);
+    return;
+  }
+
+  // Send temperature to remote server
+  if (millis() > nextSendTime) {
+    if (!sendValueToRemoteServer()) return;
+    nextSendTime = millis() + REMOTE_SEND_INTERVAL;
+  }
+
+  // Schedule next loop
+  nextLoopTime = millis() + LOOP_INTERVAL;
 }
 
 void handleHome() {
