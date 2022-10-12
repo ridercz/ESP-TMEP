@@ -216,6 +216,7 @@ void handleApi() {
 void handle404() {
   Serial.print("Serving 404 for URI ");
   Serial.println(server.uri());
+  
   String html = HTML_HEADER;
   html += HTML_404;
   html += HTML_FOOTER;
@@ -225,7 +226,7 @@ void handle404() {
 }
 
 void handleReset() {
-  Serial.print("Serving URI /reset");
+  Serial.println("Serving URI /reset");
 
   // Generate page header
   String html = HTML_HEADER;
@@ -237,7 +238,7 @@ void handleReset() {
   bool performReset = pinTriesRemaining > 0 && pin.equals(candidatePin);
 
   if (performReset) {
-    Serial.print("Correct PIN entered, reseting to configuration mode...");
+    Serial.println("Correct PIN entered, reseting to configuration mode...");
     html += "<p>System will reset to configuration mode. Connect to the following WiFi network:</p><p><code>";
     html += deviceId;
     html += "</code></p>";
