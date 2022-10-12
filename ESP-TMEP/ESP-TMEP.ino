@@ -14,19 +14,19 @@
 #include <WiFiManager.h>
 #include "WebServerConfig.h"
 
-#define VERSION "2.0.0"                              // Version string
-#define PIN_ONEWIRE D2                               // Pin where sensors are connected
-#define PIN_LED LED_BUILTIN                          // Pin where LED is connected
-#define LED_INTERVAL 250                             // LED blink interval
-#define LOOP_INTERVAL 2000                           // Loop delay interval
-#define REMOTE_TIMEOUT 5000                          // Remote server response timeout
-#define REMOTE_PORT 443                              // Remote server HTTPS port
-#define REMOTE_HOST_DEFAULT "demo.tmep.cz"           // Remote server name
-#define REMOTE_PATH_DEFAULT "/?temp="                // Remote server path prefix
-#define REMOTE_SEND_INTERVAL 60000                   // Interval in ms in which temperature is sent to server
-#define JSON_CONFIG_FILE "/config-" VERSION ".json"  // LittleFS configuration file name
-#define PIN_LOCKOUT_LIMIT 3                          // Number of PIN tries until lockout
-#define WIFIMANAGER_DEBUG false                      // Set to true to show WiFiManager debug messages
+#define VERSION "2.1.0"                     // Version string
+#define PIN_ONEWIRE D2                      // Pin where sensors are connected
+#define PIN_LED LED_BUILTIN                 // Pin where LED is connected
+#define LED_INTERVAL 250                    // LED blink interval
+#define LOOP_INTERVAL 2000                  // Loop delay interval
+#define REMOTE_TIMEOUT 5000                 // Remote server response timeout
+#define REMOTE_PORT 443                     // Remote server HTTPS port
+#define REMOTE_HOST_DEFAULT "demo.tmep.cz"  // Remote server name
+#define REMOTE_PATH_DEFAULT "/?temp="       // Remote server path prefix
+#define REMOTE_SEND_INTERVAL 60000          // Interval in ms in which temperature is sent to server
+#define JSON_CONFIG_FILE "/config-v3.json"  // Configuration file name and version
+#define PIN_LOCKOUT_LIMIT 3                 // Number of PIN tries until lockout
+#define WIFIMANAGER_DEBUG false             // Set to true to show WiFiManager debug messages
 
 // Define configuration variables
 char remoteHost[100] = REMOTE_HOST_DEFAULT;
@@ -85,6 +85,8 @@ void setup() {
   wm.addParameter(&remoteHostTB);
   wm.addParameter(&remotePathTB);
   wm.addParameter(&configPinTB);
+  const char* menu[] = { "wifi" };
+  wm.setMenu(menu, 1);
 
   if (!configLoaded) {
     Serial.println("Config load failed, starting configuration portal...");
