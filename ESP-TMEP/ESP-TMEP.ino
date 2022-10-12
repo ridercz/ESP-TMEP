@@ -9,36 +9,47 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
+#include "WebServerConfig.h"
 
-#define VERSION "1.0.0"                   // Version string
-#define MEASURE_INTERVAL 60000            // Interval in ms in which temperature is measured
-#define PIN_ONEWIRE D2                    // Pin where sensors are connected
-#define PIN_LED LED_BUILTIN               // Pin where LED is connected
-#define LED_INTERVAL 250                  // LED blink interval
-#define LOOP_INTERVAL 2000                // Loop delay interval
-#define TMEP_TIMEOUT 5000                 // TMEP.CZ response timeout
-#define TMEP_PORT 443                     // TMEP.CZ HTTPS port
-#define TMEP_HOST_DEFAULT "demo.tmep.cz"  // TMEP.CZ server name
-#define TMEP_GUID_DEFAULT "temp"          // TMEP.CZ parameter name (GUID)
-#define JSON_CONFIG_FILE "/config.json"   // SPIFFS configuration file name
-//#define WIFIMANAGER_RESET_SETTINGS        // Uncomment for reset of Wi-Fi settings
-//#define WIFIMANAGER_DEBUG                 // Uncomment for showing WiFiManager debug messages
+#define VERSION "2.0.0"                              // Version string
+#define MEASURE_INTERVAL 60000                       // Interval in ms in which temperature is measured
+#define PIN_ONEWIRE D2                               // Pin where sensors are connected
+#define PIN_LED LED_BUILTIN                          // Pin where LED is connected
+#define LED_INTERVAL 250                             // LED blink interval
+#define LOOP_INTERVAL 2000                           // Loop delay interval
+#define REMOTE_TIMEOUT 5000                          // Remote server response timeout
+#define REMOTE_PORT 443                              // Remote server HTTPS port
+#define REMOTE_HOST_DEFAULT "demo.tmep.cz"           // Remote server name
+#define REMOTE_PATH_DEFAULT "/?temp="                // Remote server path prefix
+#define JSON_CONFIG_FILE "/config-" VERSION ".json"  // SPIFFS configuration file name
+#define PIN_LOCKOUT_LIMIT 3                          // Number of PIN tries until lockout
+//#define WIFIMANAGER_RESET_SETTINGS                 // Uncomment for reset of Wi-Fi settings
+//#define WIFIMANAGER_DEBUG                          // Uncomment for showing WiFiManager debug messages
 
 // Define configuration variables
-char tmepHost[50] = TMEP_HOST_DEFAULT;
-char tmepGuid[50] = TMEP_GUID_DEFAULT;
+char remoteHost[100] = REMOTE_HOST_DEFAULT;
+char remotePath[100] = REMOTE_PATH_DEFAULT;
+char configPin[20];
 
 // Define library static instances
 OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature sensors(&oneWire);
 WiFiManager wm;
+ESP8266WebServer server(HTTP_PORT);
 
 // Define variables
-DeviceAddress lastDeviceAddress;  // Device address (used for enumeration and checking)
+DeviceAddress lastDeviceAddress;
 bool shouldSaveConfig = false;
 unsigned long nextMeasureTime = 0;
+unsigned long nextBlinkTime = 0;
+unsigned long resetTime = 0;
+bool resetRequested = false;
+float lastTemp;
+char deviceId[20];
+int pinTriesRemaining = PIN_LOCKOUT_LIMIT;
 
 void setup() {
   // Init serial port
@@ -50,13 +61,15 @@ void setup() {
   Serial.println();
 
   // Get device ID
-  char deviceId[20];
   sprintf(deviceId, "ESP-TMEP-%08X", ESP.getChipId());
   Serial.printf("Device ID: %s\n\n", deviceId);
 
   // Setup LED
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, false);  // LED on
+
+  // Generate random config PIN
+  itoa(random(1000000, 99999999), configPin, DEC);
 
   // Read configuration from SPIFFS
   bool configLoaded = loadConfigFile();
@@ -71,14 +84,14 @@ void setup() {
   Serial.println("Resetting WiFi manager settings...");
   wm.resetSettings();
 #endif
-
   wm.setSaveConfigCallback(saveConfigCallback);
   wm.setAPCallback(configModeCallback);
-
-  WiFiManagerParameter tmepHostTB("tmep_host", "TMEP host name", tmepHost, 50);
-  WiFiManagerParameter tmepGuidTB("tmep_guid", "TMEP GUID", tmepGuid, 50);
-  wm.addParameter(&tmepHostTB);
-  wm.addParameter(&tmepGuidTB);
+  WiFiManagerParameter remoteHostTB("remote_host", "Remote host name", remoteHost, sizeof(remoteHost));
+  WiFiManagerParameter remotePathTB("remote_path", "Remote path", remotePath, sizeof(remotePath));
+  WiFiManagerParameter configPinTB("config_pin", "Configuration PIN", configPin, sizeof(configPin));
+  wm.addParameter(&remoteHostTB);
+  wm.addParameter(&remotePathTB);
+  wm.addParameter(&configPinTB);
 
   if (!configLoaded) {
     Serial.println("Config load failed, starting configuration portal...");
@@ -99,70 +112,185 @@ void setup() {
   Serial.print(WiFi.SSID());
   Serial.print(", IP ");
   Serial.println(WiFi.localIP());
-    
+
   // Save configuration if needed
   if (shouldSaveConfig) {
-    strncpy(tmepHost, tmepHostTB.getValue(), sizeof(tmepHost));
-    strncpy(tmepGuid, tmepGuidTB.getValue(), sizeof(tmepGuid));
+    strncpy(remoteHost, remoteHostTB.getValue(), sizeof(remoteHost));
+    strncpy(remotePath, remotePathTB.getValue(), sizeof(remotePath));
+    strncpy(configPin, configPinTB.getValue(), sizeof(configPin));
     saveConfigFile();
+
+    // Restart after configuration changes
+    ESP.restart();
   }
 
   // Start the DallasTemperature library
   sensors.begin();
+
+  // Configure HTTP server
+  Serial.print("Starting HTTP server...");
+  server.on("/", handleHome);
+  server.on("/styles.css", handleCss);
+  server.on("/api", handleApi);
+  server.on("/reset", handleReset);
+  server.onNotFound(handle404);
+  server.begin();
+  Serial.println("OK");
+  Serial.printf("Configuration PIN: %s\n", configPin);
 }
 
 void loop() {
+  // Process HTTP requests
+  server.handleClient();
+
+  // Reset if requested
+  if (resetRequested && millis() > resetTime) ESP.reset();
+
+  // Check if it's time to do more work
+  if (millis() < nextBlinkTime) return;
+
+  // Measure temperature
   if (millis() > nextMeasureTime) {
-    // Measure temperature
     DeviceAddress addr;
-    float t;
     sensors.requestTemperatures();
     if (sensors.getAddress(addr, 0)) {
-      t = sensors.getTempC(addr);
-      Serial.printf("Temperature: %.2f\n", t);
+      lastTemp = sensors.getTempC(addr);
+      Serial.printf("Temperature: %.2f\n", lastTemp);
     } else {
       // Failed to measure temperature - blink twice
       Serial.print("Temperature: Error!\n");
-      blinkLed(2);
+      blinkLed(1);
       return;
     }
 
     // Send it to TMEP service
-    if (!sendValue(t)) return;
+    if (!sendValueToRemoteServer()) return;
 
     // Schedule next measurement
     nextMeasureTime = millis() + MEASURE_INTERVAL;
   }
 
-  // Blink LED onced
+  // Blink LED once
   blinkLed(1);
-
-  // Wait for next loop
-  delay(LOOP_INTERVAL);
+  nextBlinkTime = millis() + LOOP_INTERVAL;
 }
 
-bool sendValue(float t) {
-  BearSSL::WiFiClientSecure client;
-  client.setInsecure(); // Ignore invalid certificates, we are not able to validate chain correctly anyway
+void handleHome() {
+  Serial.println("Serving URI /");
 
-  Serial.printf("Requesting https://%s/?%s=%.2f...", tmepHost, tmepGuid, t);
-  if (!client.connect(tmepHost, TMEP_PORT)) {
+  String html = HTML_HEADER;
+  html += "<h1>Current temperature</h1>";
+  html += "<p class=\"curtemp\">";
+  html += lastTemp;
+  html += " &deg;C</p>";
+  html += HTML_HOME;
+  html += HTML_FOOTER;
+
+  sendCommonHttpHeaders();
+  server.send(200, "text/html", html);
+}
+
+void handleCss() {
+  Serial.println("Serving URI /styles.css");
+
+  sendCommonHttpHeaders();
+  server.send(200, "text/css", HTML_CSS);
+}
+
+void handleApi() {
+  Serial.println("Serving URI /api");
+
+  String json = "{\n\t\"temp\" : ";
+  json += lastTemp;
+  json += ",\n\t\"deviceId\" : \"";
+  json += deviceId;
+  json += "\",\n\t\"version\" : \"" VERSION "\"\n}";
+
+  Serial.println("Serving URI /api");
+  sendCommonHttpHeaders();
+  server.send(200, "application/json", json);
+}
+
+void handle404() {
+  Serial.print("Serving 404 for URI ");
+  Serial.println(server.uri());
+  String html = HTML_HEADER;
+  html += HTML_404;
+  html += HTML_FOOTER;
+
+  sendCommonHttpHeaders();
+  server.send(404, "text/html", html);
+}
+
+void handleReset() {
+  Serial.print("Serving URI /reset");
+
+  // Generate page header
+  String html = HTML_HEADER;
+  html += "<h1>Configuration reset</h1>";
+
+  // Compare PIN
+  String candidatePin = server.arg("pin");
+  String pin = String(configPin);
+  bool performReset = pinTriesRemaining > 0 && pin.equals(candidatePin);
+
+  if (performReset) {
+    Serial.print("Correct PIN entered, reseting to configuration mode...");
+    html += "<p>System will reset to configuration mode. Connect to the following WiFi network:</p><p><code>";
+    html += deviceId;
+    html += "</code></p>";
+  } else {
+    if (pinTriesRemaining > 0) pinTriesRemaining--;
+    Serial.printf("Incorrect PIN entered, %i tries remaining\n", pinTriesRemaining);
+    html += "<p>Incorrect PIN was entered. ";
+    html += pinTriesRemaining;
+    html += " tries remaining.</p>";
+    html += "<p class=\"link\"><a href=\"/\">Back</a></p>";
+  }
+
+  // Generate page footer
+  html += HTML_FOOTER;
+
+  // Send response
+  sendCommonHttpHeaders();
+  server.send(200, "text/html", html);
+
+  // Reset configuration if successfull
+  if (performReset) {
+    deleteConfigFile();
+    resetRequested = true;
+    resetTime = millis() + 5000;  // Reset in 5 s
+  }
+}
+
+void sendCommonHttpHeaders() {
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  server.sendHeader("Expires", "-1");
+  server.sendHeader("Server", "ESP-TMEP/" VERSION);
+}
+
+bool sendValueToRemoteServer() {
+  BearSSL::WiFiClientSecure client;
+  client.setInsecure();  // Ignore invalid certificates, we are not able to validate chain correctly anyway
+
+  Serial.printf("Requesting https://%s%s%.2f...", remoteHost, remotePath, lastTemp);
+  if (!client.connect(remoteHost, REMOTE_PORT)) {
     Serial.println("Connect failed!");
-    blinkLed(3);
+    blinkLed(2);
     return false;
   }
   Serial.print("Connected...");
-  client.printf("GET /?%s=%.2f HTTP/1.1\r\n", tmepGuid, t);
-  client.printf("Host: %s\r\n", tmepHost);
+  client.printf("GET %s%.2f HTTP/1.1\r\n", remotePath, lastTemp);
+  client.printf("Host: %s\r\n", remoteHost);
   client.print("Connection: close\r\n");
   client.print("User-Agent: ESP-TMEP/" VERSION " (https://github.com/ridercz/ESP-TMEP)\r\n");
   client.print("\r\n");
-  unsigned long timeout = millis() + TMEP_TIMEOUT;
+  unsigned long timeout = millis() + REMOTE_TIMEOUT;
   while (client.available() == 0) {
     if (millis() > timeout) {
       Serial.println("Timeout!");
       client.stop();
-      blinkLed(4);
+      blinkLed(3);
       return false;
     }
   }
@@ -182,8 +310,9 @@ void blinkLed(int count) {
 void saveConfigFile() {
   // Create a JSON document
   StaticJsonDocument<512> json;
-  json["tmepHost"] = tmepHost;
-  json["tmepGuid"] = tmepGuid;
+  json["remoteHost"] = remoteHost;
+  json["remotePath"] = remotePath;
+  json["configPin"] = configPin;
 
   // Open/create JSON file
   Serial.print("Opening " JSON_CONFIG_FILE "...");
@@ -223,7 +352,7 @@ bool loadConfigFile() {
 
   // Read existing file
   if (!SPIFFS.exists(JSON_CONFIG_FILE)) {
-    Serial.println("Configuraiton file " JSON_CONFIG_FILE " not found.");
+    Serial.println("Configuration file " JSON_CONFIG_FILE " not found.");
     return false;
   }
   Serial.print("Opening " JSON_CONFIG_FILE "...");
@@ -242,10 +371,26 @@ bool loadConfigFile() {
     Serial.println("Failed!");
     return false;
   }
-  strcpy(tmepHost, json["tmepHost"]);
-  strcpy(tmepGuid, json["tmepGuid"]);
+  strcpy(remoteHost, json["remoteHost"]);
+  strcpy(remotePath, json["remotePath"]);
+  strcpy(configPin, json["configPin"]);
   Serial.println("OK");
   return true;
+}
+
+void deleteConfigFile() {
+  Serial.print("Opening SPIFFS...");
+  if (!SPIFFS.begin()) {
+    Serial.println("Failed!");
+    while (true) {
+      blinkLed(1);
+    };
+  }
+  Serial.println("OK");
+
+  Serial.print("Deleting " JSON_CONFIG_FILE "...");
+  SPIFFS.remove(JSON_CONFIG_FILE);
+  Serial.println("OK");
 }
 
 void saveConfigCallback() {
