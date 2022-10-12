@@ -147,8 +147,11 @@ void loop() {
   DeviceAddress addr;
   sensors.requestTemperatures();
   if (sensors.getAddress(addr, 0)) {
-    lastTemp = sensors.getTempC(addr);
-    Serial.printf("Temperature: %.2f\n", lastTemp);
+    float curTemp = sensors.getTempC(addr);
+    if (curTemp != lastTemp) {
+      lastTemp = curTemp;
+      Serial.printf("Temperature: %.2f\n", lastTemp);
+    }
   } else {
     // Failed to measure temperature - blink twice
     Serial.print("Temperature: Error!\n");
@@ -232,7 +235,8 @@ void handleReset() {
     html += "</code></p>";
   } else if (pinTriesRemaining == 0) {
     Serial.println("Incorrect PIN entered, system locked");
-    html += "<p>Incorrect PIN was entered. System is locked until next reboot.</p>" html += "<p class=\"link\"><a href=\"/\">Back</a></p>";
+    html += "<p>Incorrect PIN was entered. System is locked until next reboot.</p>";
+    html += "<p class=\"link\"><a href=\"/\">Back</a></p>";
   } else {
     pinTriesRemaining--;
     Serial.printf("Incorrect PIN entered, %i tries remaining\n", pinTriesRemaining);
