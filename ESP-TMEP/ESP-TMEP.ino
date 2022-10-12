@@ -5,7 +5,7 @@
 * www.rider.cz | www.altair.blog | github.com/ridercz/ESP-TMEP
 *****************************************************************************/
 
-#include <FS.h>
+#include <LittleFS.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <ESP8266WiFi.h>
@@ -24,7 +24,7 @@
 #define REMOTE_HOST_DEFAULT "demo.tmep.cz"           // Remote server name
 #define REMOTE_PATH_DEFAULT "/?temp="                // Remote server path prefix
 #define REMOTE_SEND_INTERVAL 60000                   // Interval in ms in which temperature is sent to server
-#define JSON_CONFIG_FILE "/config-" VERSION ".json"  // SPIFFS configuration file name
+#define JSON_CONFIG_FILE "/config-" VERSION ".json"  // LittleFS configuration file name
 #define PIN_LOCKOUT_LIMIT 3                          // Number of PIN tries until lockout
 #define WIFIMANAGER_DEBUG false                      // Set to true to show WiFiManager debug messages
 
@@ -72,7 +72,7 @@ void setup() {
   // Generate random config PIN
   itoa(random(1000000, 99999999), configPin, DEC);
 
-  // Read configuration from SPIFFS
+  // Read configuration from LittleFS
   bool configLoaded = loadConfigFile();
 
   // Configure WiFiManager options
@@ -326,7 +326,7 @@ void saveConfigFile() {
 
   // Open/create JSON file
   Serial.print("Opening " JSON_CONFIG_FILE "...");
-  File configFile = SPIFFS.open(JSON_CONFIG_FILE, "w");
+  File configFile = LittleFS.open(JSON_CONFIG_FILE, "w");
   if (!configFile) {
     Serial.println("Failed!");
     while (true) {
@@ -351,8 +351,8 @@ void saveConfigFile() {
 
 bool loadConfigFile() {
   // Read configuration from FS json
-  Serial.print("Opening SPIFFS...");
-  if (!SPIFFS.begin()) {
+  Serial.print("Opening LittleFS...");
+  if (!LittleFS.begin()) {
     Serial.println("Failed!");
     while (true) {
       blinkLed(1);
@@ -361,12 +361,12 @@ bool loadConfigFile() {
   Serial.println("OK");
 
   // Read existing file
-  if (!SPIFFS.exists(JSON_CONFIG_FILE)) {
+  if (!LittleFS.exists(JSON_CONFIG_FILE)) {
     Serial.println("Configuration file " JSON_CONFIG_FILE " not found.");
     return false;
   }
   Serial.print("Opening " JSON_CONFIG_FILE "...");
-  File configFile = SPIFFS.open(JSON_CONFIG_FILE, "r");
+  File configFile = LittleFS.open(JSON_CONFIG_FILE, "r");
   if (!configFile) {
     Serial.println("Failed!");
     return false;
@@ -389,8 +389,8 @@ bool loadConfigFile() {
 }
 
 void deleteConfigFile() {
-  Serial.print("Opening SPIFFS...");
-  if (!SPIFFS.begin()) {
+  Serial.print("Opening LittleFS...");
+  if (!LittleFS.begin()) {
     Serial.println("Failed!");
     while (true) {
       blinkLed(1);
@@ -399,7 +399,7 @@ void deleteConfigFile() {
   Serial.println("OK");
 
   Serial.print("Deleting " JSON_CONFIG_FILE "...");
-  SPIFFS.remove(JSON_CONFIG_FILE);
+  LittleFS.remove(JSON_CONFIG_FILE);
   Serial.println("OK");
 }
 
