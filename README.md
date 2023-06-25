@@ -10,14 +10,16 @@ ESP-TMEP is firmware for ESP8266, which can measure temperature using DS18B20 an
 
 * Support for common DS18B20 temperature sensors.
 * User-friendly deployment (no need to modify code, easy configuration via web browser).
+* Can send values to three URLs.
+* Reboots every 29 hours to maintain stability.
 
 ### Limitations
 
 * No server certificate validation is performed, because on ESP8266 it's practically impossible.
 * Internal web server is HTTP only; again, because proper HTTPS is almost impossible on ESP8266.
 * Some parameters are still hardcoded:
+    * Interval in which data are measured and sent (always 60 seconds).
     * Remote server protocol (always uses HTTPS).
-    * Interval in which data are measured and sent (and if they are to be sent at all).
     * Remote server timeout.
 
 ## Usage
@@ -38,9 +40,11 @@ Scheme     | Host           | Path      | Value
 ---------- | -------------- | --------- | ------
 `https://` | `demo.tmep.cz` | `/?temp=` | `22.63`
 
+You can define up to three URLs.
+
 ### Operational mode
 
-Device then restarts to operational mode. In this mode, in addition to sending the measurement to remote servers, runt a local web server, offering the following services:
+Device then restarts to operational mode. In this mode, in addition to sending the measurement to remote servers, runs a local web server, offering the following services:
 
 URI              | Description
 ---------------- | ------------------------------------
@@ -56,7 +60,7 @@ The response has the following format:
 {
     "temp" : 22.63,
     "deviceId" : "ESP-TMEP-xxxxxxxx",
-    "version" : "2.0.0"
+    "version" : "2.2.0"
 }
 ```
 
@@ -107,9 +111,9 @@ I'm using this [WeMos D1 mini Enclosure](https://www.printables.com/model/44083-
 
 ## Software
 
-This firmware is using ESP8266 Arduino Core 2.0. The following external libraries are required:
+This firmware is using [ESP8266 Arduino Core 3.1.2](https://github.com/esp8266/Arduino). The following external libraries are required:
 
-* [OneWire](https://www.pjrc.com/teensy/td_libs_OneWire.html)
-* [DallasTemperature](https://github.com/milesburton/Arduino-Temperature-Control-Library)
-* [ArduinoJson](https://arduinojson.org/)
-* [WiFiManager](https://github.com/tzapu/WiFiManager)
+* [ArduinoJson](https://arduinojson.org/) (tested with version 6.21.2)
+* [DallasTemperature](https://github.com/milesburton/Arduino-Temperature-Control-Library) (tested with version 3.9.0)
+* [OneWire](https://www.pjrc.com/teensy/td_libs_OneWire.html) (tested with version 2.3.7)
+* [WiFiManager](https://github.com/tzapu/WiFiManager) (tested with version 2.0.16-rc2)
