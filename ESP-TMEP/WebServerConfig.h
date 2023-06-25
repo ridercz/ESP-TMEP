@@ -31,7 +31,7 @@ footer { font-size: 80%; border-top: 1px solid #c00; color: #c00; padding: 1ex;}
 #define HTML_HOME "<p class=\"link\">\
 <a href=\"/api\">REST API</a>\
 <a href=\"javascript:resetConfig();\">Reset configuration</a>\
-\</p>\
+</p>\
 <script>function resetConfig() {\
   var pin = window.prompt('Enter config PIN:');\
   if(pin) window.location.href = '/reset?pin=' + pin;\
