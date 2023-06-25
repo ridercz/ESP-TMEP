@@ -1,7 +1,7 @@
 /*****************************************************************************
 * ESP-TMEP - ESP8266 firmware for sending temperatures to TMEP.CZ
 ******************************************************************************
-* (c) Michal A. Valasek, 2022 | Licensed under terms of the MIT license
+* (c) Michal A. Valasek, 2022-2023 | Licensed under terms of the MIT license
 * www.rider.cz | www.altair.blog | github.com/ridercz/ESP-TMEP
 *****************************************************************************/
 
@@ -14,23 +14,28 @@
 #include <WiFiManager.h>
 #include "WebServerConfig.h"
 
-#define VERSION "2.1.0"                     // Version string
+#define VERSION "2.2.0"                     // Version string
 #define PIN_ONEWIRE D2                      // Pin where sensors are connected
 #define PIN_LED LED_BUILTIN                 // Pin where LED is connected
-#define LED_INTERVAL 250                    // LED blink interval
-#define LOOP_INTERVAL 2000                  // Loop delay interval
-#define REMOTE_TIMEOUT 5000                 // Remote server response timeout
+#define LED_INTERVAL 250                    // LED blink interval in ms
+#define LOOP_INTERVAL 2000                  // Loop delay interval in ms
+#define REBOOT_INTERVAL 104400000           // "Daily" reboot interval (29 hours, first prime after 24)
+#define REMOTE_TIMEOUT 5000                 // Remote server response timeout in ms
 #define REMOTE_PORT 443                     // Remote server HTTPS port
 #define REMOTE_HOST_DEFAULT "demo.tmep.cz"  // Remote server name
 #define REMOTE_PATH_DEFAULT "/?temp="       // Remote server path prefix
 #define REMOTE_SEND_INTERVAL 60000          // Interval in ms in which temperature is sent to server
-#define JSON_CONFIG_FILE "/config-v3.json"  // Configuration file name and version
+#define JSON_CONFIG_FILE "/config-v4.json"  // Configuration file name and version
 #define PIN_LOCKOUT_LIMIT 3                 // Number of PIN tries until lockout
 #define WIFIMANAGER_DEBUG false             // Set to true to show WiFiManager debug messages
 
 // Define configuration variables
-char remoteHost[100] = REMOTE_HOST_DEFAULT;
-char remotePath[100] = REMOTE_PATH_DEFAULT;
+char remoteHost1[100] = REMOTE_HOST_DEFAULT;
+char remotePath1[100] = REMOTE_PATH_DEFAULT;
+char remoteHost2[100] = "";
+char remotePath2[100] = REMOTE_PATH_DEFAULT;
+char remoteHost3[100] = "";
+char remotePath3[100] = REMOTE_PATH_DEFAULT;
 char configPin[20];
 
 // Define library static instances
@@ -41,7 +46,6 @@ ESP8266WebServer server(HTTP_PORT);
 
 // Define variables
 DeviceAddress lastDeviceAddress;
-bool shouldSaveConfig = false;
 unsigned long nextSendTime = 0;
 unsigned long nextLoopTime = 0;
 unsigned long resetTime = 0;
@@ -49,6 +53,15 @@ bool resetRequested = false;
 float lastTemp;
 char deviceId[20];
 int pinTriesRemaining = PIN_LOCKOUT_LIMIT;
+
+// WiFiManager parameters
+WiFiManagerParameter remoteHost1TB("remote_host_1", "Remote host #1 name", remoteHost1, sizeof(remoteHost1));
+WiFiManagerParameter remotePath1TB("remote_path_1", "Remote path #1", remotePath1, sizeof(remotePath1));
+WiFiManagerParameter remoteHost2TB("remote_host_2", "Remote host #2 name", remoteHost2, sizeof(remoteHost2));
+WiFiManagerParameter remotePath2TB("remote_path_2", "Remote path #2", remotePath2, sizeof(remotePath2));
+WiFiManagerParameter remoteHost3TB("remote_host_3", "Remote host #3 name", remoteHost3, sizeof(remoteHost3));
+WiFiManagerParameter remotePath3TB("remote_path_3", "Remote path #3", remotePath3, sizeof(remotePath3));
+WiFiManagerParameter configPinTB("config_pin", "Configuration PIN", configPin, sizeof(configPin));
 
 // Initialization
 
@@ -58,7 +71,7 @@ void setup() {
   Serial.println();
   Serial.println();
   Serial.println("ESP-TMEP/" VERSION " | https://github.com/ridercz/ESP-TMEP");
-  Serial.println("(c) Michal A. Valasek, 2022 | www.altair.blog | www.rider.cz");
+  Serial.println("(c) Michal A. Valasek, 2022-2023 | www.altair.blog | www.rider.cz");
   Serial.println();
 
   // Get device ID
@@ -71,19 +84,21 @@ void setup() {
 
   // Generate random config PIN
   itoa(random(1000000, 99999999), configPin, DEC);
+  configPinTB.setValue(configPin, sizeof(configPin));
 
   // Read configuration from LittleFS
   bool configLoaded = loadConfigFile();
 
   // Configure WiFiManager options
   wm.setDebugOutput(WIFIMANAGER_DEBUG);
-  wm.setSaveConfigCallback(saveConfigCallback);
+  wm.setSaveParamsCallback(saveParamsCallback);
   wm.setAPCallback(configModeCallback);
-  WiFiManagerParameter remoteHostTB("remote_host", "Remote host name", remoteHost, sizeof(remoteHost));
-  WiFiManagerParameter remotePathTB("remote_path", "Remote path", remotePath, sizeof(remotePath));
-  WiFiManagerParameter configPinTB("config_pin", "Configuration PIN", configPin, sizeof(configPin));
-  wm.addParameter(&remoteHostTB);
-  wm.addParameter(&remotePathTB);
+  wm.addParameter(&remoteHost1TB);
+  wm.addParameter(&remotePath1TB);
+  wm.addParameter(&remoteHost2TB);
+  wm.addParameter(&remotePath2TB);
+  wm.addParameter(&remoteHost3TB);
+  wm.addParameter(&remotePath3TB);
   wm.addParameter(&configPinTB);
   const char* menu[] = { "wifi" };
   wm.setMenu(menu, 1);
@@ -108,17 +123,6 @@ void setup() {
   Serial.print(", IP ");
   Serial.println(WiFi.localIP());
 
-  // Save configuration if needed
-  if (shouldSaveConfig) {
-    strncpy(remoteHost, remoteHostTB.getValue(), sizeof(remoteHost));
-    strncpy(remotePath, remotePathTB.getValue(), sizeof(remotePath));
-    strncpy(configPin, configPinTB.getValue(), sizeof(configPin));
-    saveConfigFile();
-
-    // Restart after configuration changes
-    ESP.restart();
-  }
-
   // Start the DallasTemperature library
   sensors.begin();
 
@@ -137,14 +141,16 @@ void setup() {
 // Main loop
 
 void loop() {
+  unsigned long millisNow = millis();
+
   // Process HTTP requests
   server.handleClient();
 
-  // Reset if requested
-  if (resetRequested && millis() > resetTime) ESP.reset();
+  // Reset if requested or if it's after reboot interval
+  if (millisNow >= REBOOT_INTERVAL || (resetRequested && millisNow > resetTime)) ESP.reset();
 
   // Check if it's time to do more work
-  if (millis() < nextLoopTime) return;
+  if (millisNow < nextLoopTime) return;
 
   // Blink LED once
   blinkLed(1);
@@ -165,10 +171,12 @@ void loop() {
     return;
   }
 
-  // Send temperature to remote server
-  if (millis() > nextSendTime) {
-    if (!sendValueToRemoteServer()) return;
-    nextSendTime = millis() + REMOTE_SEND_INTERVAL;
+  // Send temperature to remote server(s)
+  if (millisNow > nextSendTime) {
+    sendValueToRemoteServer(remoteHost1, remotePath1);
+    sendValueToRemoteServer(remoteHost2, remotePath2);
+    sendValueToRemoteServer(remoteHost3, remotePath3);
+    nextSendTime = millisNow + REMOTE_SEND_INTERVAL;
   }
 
   // Schedule next loop
@@ -278,10 +286,12 @@ void sendCommonHttpHeaders() {
 
 // Remote server communication
 
-bool sendValueToRemoteServer() {
+bool sendValueToRemoteServer(char* remoteHost, char* remotePath) {
+  if(*remoteHost == '\0' || *remotePath == '\0') return true;
+
   BearSSL::WiFiClientSecure client;
   client.setInsecure();  // Ignore invalid certificates, we are not able to validate chain correctly anyway
-
+  
   Serial.printf("Requesting https://%s%s%.2f...", remoteHost, remotePath, lastTemp);
   if (!client.connect(remoteHost, REMOTE_PORT)) {
     Serial.println("Connect failed!");
@@ -322,9 +332,13 @@ void blinkLed(int count) {
 
 void saveConfigFile() {
   // Create a JSON document
-  StaticJsonDocument<512> json;
-  json["remoteHost"] = remoteHost;
-  json["remotePath"] = remotePath;
+  StaticJsonDocument<1024> json;
+  json["remoteHost1"] = remoteHost1;
+  json["remotePath1"] = remotePath1;
+  json["remoteHost2"] = remoteHost2;
+  json["remotePath2"] = remotePath2;
+  json["remoteHost3"] = remoteHost3;
+  json["remotePath3"] = remotePath3;
   json["configPin"] = configPin;
 
   // Open/create JSON file
@@ -378,14 +392,18 @@ bool loadConfigFile() {
 
   // Parse JSON
   Serial.print("Parsing JSON file...");
-  StaticJsonDocument<512> json;
+  StaticJsonDocument<1024> json;
   DeserializationError error = deserializeJson(json, configFile);
   if (error) {
     Serial.println("Failed!");
     return false;
   }
-  strcpy(remoteHost, json["remoteHost"]);
-  strcpy(remotePath, json["remotePath"]);
+  strcpy(remoteHost1, json["remoteHost1"]);
+  strcpy(remotePath1, json["remotePath1"]);
+  strcpy(remoteHost2, json["remoteHost2"]);
+  strcpy(remotePath2, json["remotePath2"]);
+  strcpy(remoteHost3, json["remoteHost3"]);
+  strcpy(remotePath3, json["remotePath3"]);
   strcpy(configPin, json["configPin"]);
   Serial.println("OK");
   return true;
@@ -408,8 +426,21 @@ void deleteConfigFile() {
 
 // WiFiManager callbacks
 
-void saveConfigCallback() {
-  shouldSaveConfig = true;
+void saveParamsCallback() {
+  Serial.println("Getting configuration from portal...");
+  strncpy(remoteHost1, remoteHost1TB.getValue(), sizeof(remoteHost1));
+  strncpy(remotePath1, remotePath1TB.getValue(), sizeof(remotePath1));
+  strncpy(remoteHost2, remoteHost2TB.getValue(), sizeof(remoteHost2));
+  strncpy(remotePath2, remotePath2TB.getValue(), sizeof(remotePath2));
+  strncpy(remoteHost3, remoteHost3TB.getValue(), sizeof(remoteHost3));
+  strncpy(remotePath3, remotePath3TB.getValue(), sizeof(remotePath3));
+  strncpy(configPin, configPinTB.getValue(), sizeof(configPin));
+
+  Serial.println("Saving configuration to JSON...");
+  saveConfigFile();
+
+  Serial.println("Rebooting device...");
+  ESP.restart();
 }
 
 void configModeCallback(WiFiManager* myWiFiManager) {
