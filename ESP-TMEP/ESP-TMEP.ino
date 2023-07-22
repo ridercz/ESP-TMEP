@@ -14,7 +14,7 @@
 #include <WiFiManager.h>
 #include "WebServerConfig.h"
 
-#define VERSION "2.2.0"                     // Version string
+#define VERSION "2.2.1"                     // Version string
 #define PIN_ONEWIRE D2                      // Pin where sensors are connected
 #define PIN_LED LED_BUILTIN                 // Pin where LED is connected
 #define LED_INTERVAL 250                    // LED blink interval in ms
@@ -109,6 +109,8 @@ void setup() {
       Serial.println("Config portal failed, rebooting.");
       ESP.restart();
     }
+    Serial.println("Rebooting after exiting configuration portal...");
+    ESP.restart();
   } else {
     Serial.println("Config load successful, connecting to WiFi...");
     if (!wm.autoConnect(deviceId)) {
@@ -438,9 +440,6 @@ void saveParamsCallback() {
 
   Serial.println("Saving configuration to JSON...");
   saveConfigFile();
-
-  Serial.println("Rebooting device...");
-  ESP.restart();
 }
 
 void configModeCallback(WiFiManager* myWiFiManager) {
