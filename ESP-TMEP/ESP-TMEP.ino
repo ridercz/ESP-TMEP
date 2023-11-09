@@ -14,7 +14,7 @@
 #include <WiFiManager.h>
 #include "WebServerConfig.h"
 
-#define VERSION "2.2.1"                     // Version string
+#define VERSION "2.2.2"                     // Version string
 #define PIN_ONEWIRE D2                      // Pin where sensors are connected
 #define PIN_LED LED_BUILTIN                 // Pin where LED is connected
 #define LED_INTERVAL 250                    // LED blink interval in ms
@@ -28,6 +28,7 @@
 #define JSON_CONFIG_FILE "/config-v4.json"  // Configuration file name and version
 #define PIN_LOCKOUT_LIMIT 3                 // Number of PIN tries until lockout
 #define WIFIMANAGER_DEBUG false             // Set to true to show WiFiManager debug messages
+#define WIFIMANAGER_TIMEOUT 180             // Set timeout of the config portal
 
 // Define configuration variables
 char remoteHost1[100] = REMOTE_HOST_DEFAULT;
@@ -103,6 +104,9 @@ void setup() {
   const char* menu[] = { "wifi" };
   wm.setMenu(menu, 1);
 
+  // Set configuration portal timeout
+  wm.setConfigPortalTimeout(WIFIMANAGER_TIMEOUT);
+
   if (!configLoaded) {
     Serial.println("Config load failed, starting configuration portal...");
     if (!wm.startConfigPortal(deviceId)) {
@@ -114,7 +118,7 @@ void setup() {
   } else {
     Serial.println("Config load successful, connecting to WiFi...");
     if (!wm.autoConnect(deviceId)) {
-      Serial.println("Config portal failed, rebooting.");
+      Serial.println("Config portal failed or timed out, rebooting.");
       ESP.restart();
     }
   }
