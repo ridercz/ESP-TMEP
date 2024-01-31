@@ -2,7 +2,11 @@
 
 ESP-TMEP is firmware for ESP8266, which can measure temperature using DS18B20 and send it to the [TMEP.CZ](https://www.tmep.cz/) online service or any other service that accepts HTTP GET requests.
 
-> Build video and basic information about this project (in Czech) is [on my blog](https://www.altair.blog/2022/09/esp-tmep).
+> Build video and basic information about this project (in Czech) is [on my blog](https://www.altair.blog/2022/09/esp-tmep) and the Z-TECH YouTube channel:
+
+* [Jak vyrobit Internetový teploměr pro TMEP.CZ ze třech součástek](https://www.youtube.com/watch?v=qh9V8oPX-iM)
+* [Aktualizace internetového teploměru ESP-TMEP](https://www.youtube.com/watch?v=DLWacm16rQw)
+* [Vylepšení internetového teploměru ESP-TMEP](https://www.youtube.com/watch?v=5T04NmTo4V4)
 
 ## Features and limitations
 
@@ -12,6 +16,7 @@ ESP-TMEP is firmware for ESP8266, which can measure temperature using DS18B20 an
 * User-friendly deployment (no need to modify code, easy configuration via web browser).
 * Can send values to three URLs.
 * Reboots every 29 hours to maintain stability.
+* Measures temperature as a rolling average over 1 minute to compensate for measuring errors.
 
 ### Limitations
 
@@ -113,7 +118,7 @@ I'm using this [WeMos D1 mini Enclosure](https://www.printables.com/model/44083-
 
 This firmware is using [ESP8266 Arduino Core 3.1.2](https://github.com/esp8266/Arduino). The following external libraries are required:
 
-* [ArduinoJson](https://arduinojson.org/) (tested with version 6.21.2)
+* [ArduinoJson](https://arduinojson.org/) (tested with version 7.0.2)
 * [DallasTemperature](https://github.com/milesburton/Arduino-Temperature-Control-Library) (tested with version 3.9.0)
 * [OneWire](https://www.pjrc.com/teensy/td_libs_OneWire.html) (tested with version 2.3.7)
 * [WiFiManager](https://github.com/tzapu/WiFiManager) (tested with version 2.0.16-rc2)

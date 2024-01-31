@@ -1,7 +1,7 @@
 /*****************************************************************************
 * ESP-TMEP - ESP8266 firmware for sending temperatures to TMEP.CZ
 ******************************************************************************
-* (c) Michal A. Valasek, 2022-2023 | Licensed under terms of the MIT license
+* (c) Michal A. Valasek, 2022-2024 | Licensed under terms of the MIT license
 * www.rider.cz | www.altair.blog | github.com/ridercz/ESP-TMEP
 *****************************************************************************/
 
@@ -14,7 +14,7 @@
 #include <WiFiManager.h>
 #include "WebServerConfig.h"
 
-#define VERSION "2.2.2"                     // Version string
+#define VERSION "2.3.0"                     // Version string
 #define PIN_ONEWIRE D2                      // Pin where sensors are connected
 #define PIN_LED LED_BUILTIN                 // Pin where LED is connected
 #define LED_INTERVAL 250                    // LED blink interval in ms
@@ -29,6 +29,7 @@
 #define PIN_LOCKOUT_LIMIT 3                 // Number of PIN tries until lockout
 #define WIFIMANAGER_DEBUG false             // Set to true to show WiFiManager debug messages
 #define WIFIMANAGER_TIMEOUT 180             // Set timeout of the config portal
+#define ROLAVG_COUNT 30                     // Set number of rolling average measurements
 
 // Define configuration variables
 char remoteHost1[100] = REMOTE_HOST_DEFAULT;
@@ -51,9 +52,12 @@ unsigned long nextSendTime = 0;
 unsigned long nextLoopTime = 0;
 unsigned long resetTime = 0;
 bool resetRequested = false;
-float lastTemp;
+float avgTemp;
 char deviceId[20];
 int pinTriesRemaining = PIN_LOCKOUT_LIMIT;
+int rolavg_index = 0;
+int rolavg_first = true;
+float rolavg_values[ROLAVG_COUNT];
 
 // WiFiManager parameters
 WiFiManagerParameter remoteHost1TB("remote_host_1", "Remote host #1 name", remoteHost1, sizeof(remoteHost1));
@@ -70,9 +74,10 @@ void setup() {
   // Init serial port
   Serial.begin(9600);
   Serial.println();
+  delay(1000);
   Serial.println();
   Serial.println("ESP-TMEP/" VERSION " | https://github.com/ridercz/ESP-TMEP");
-  Serial.println("(c) Michal A. Valasek, 2022-2023 | www.altair.blog | www.rider.cz");
+  Serial.println("(c) Michal A. Valasek, 2022-2024 | www.altair.blog | www.rider.cz");
   Serial.println();
 
   // Get device ID
@@ -166,10 +171,22 @@ void loop() {
   sensors.requestTemperatures();
   if (sensors.getAddress(addr, 0)) {
     float curTemp = sensors.getTempC(addr);
-    if (curTemp != lastTemp) {
-      lastTemp = curTemp;
-      Serial.printf("Temperature: %.2f\n", lastTemp);
+
+    // Compute rolling average value
+    rolavg_values[rolavg_index] = curTemp;
+    int valueCount = rolavg_first ? rolavg_index + 1 : ROLAVG_COUNT;
+    float valueTotal = 0;
+    for(int i = 0; i < valueCount; i++) {
+      valueTotal += rolavg_values[i];
     }
+    avgTemp = valueTotal / valueCount;
+    rolavg_index++;
+    if(rolavg_index == ROLAVG_COUNT) {
+      rolavg_index = 0;
+      rolavg_first = false;
+    }
+
+    Serial.printf("Current temperature = %.2f C, Rolling average = %.2f C across %i values\n", curTemp, avgTemp, valueCount);
   } else {
     // Failed to measure temperature - blink twice
     Serial.print("Temperature: Error!\n");
@@ -182,7 +199,10 @@ void loop() {
     sendValueToRemoteServer(remoteHost1, remotePath1);
     sendValueToRemoteServer(remoteHost2, remotePath2);
     sendValueToRemoteServer(remoteHost3, remotePath3);
+
+    // Schedule next send
     nextSendTime = millisNow + REMOTE_SEND_INTERVAL;
+
   }
 
   // Schedule next loop
@@ -197,7 +217,7 @@ void handleHome() {
   String html = HTML_HEADER;
   html += "<h1>Current temperature</h1>";
   html += "<p class=\"curtemp\">";
-  html += lastTemp;
+  html += avgTemp;
   html += " &deg;C</p>";
   html += HTML_HOME;
   html += HTML_FOOTER;
@@ -217,7 +237,7 @@ void handleApi() {
   Serial.println("Serving URI /api");
 
   String json = "{\n\t\"temp\" : ";
-  json += lastTemp;
+  json += avgTemp;
   json += ",\n\t\"deviceId\" : \"";
   json += deviceId;
   json += "\",\n\t\"version\" : \"" VERSION "\"\n}";
@@ -230,7 +250,7 @@ void handleApi() {
 void handle404() {
   Serial.print("Serving 404 for URI ");
   Serial.println(server.uri());
-  
+
   String html = HTML_HEADER;
   html += HTML_404;
   html += HTML_FOOTER;
@@ -293,19 +313,19 @@ void sendCommonHttpHeaders() {
 // Remote server communication
 
 bool sendValueToRemoteServer(char* remoteHost, char* remotePath) {
-  if(*remoteHost == '\0' || *remotePath == '\0') return true;
+  if (*remoteHost == '\0' || *remotePath == '\0') return true;
 
   BearSSL::WiFiClientSecure client;
   client.setInsecure();  // Ignore invalid certificates, we are not able to validate chain correctly anyway
-  
-  Serial.printf("Requesting https://%s%s%.2f...", remoteHost, remotePath, lastTemp);
+
+  Serial.printf("Requesting https://%s%s%.2f...", remoteHost, remotePath, avgTemp);
   if (!client.connect(remoteHost, REMOTE_PORT)) {
     Serial.println("Connect failed!");
     blinkLed(2);
     return false;
   }
   Serial.print("Connected...");
-  client.printf("GET %s%.2f HTTP/1.1\r\n", remotePath, lastTemp);
+  client.printf("GET %s%.2f HTTP/1.1\r\n", remotePath, avgTemp);
   client.printf("Host: %s\r\n", remoteHost);
   client.print("Connection: close\r\n");
   client.print("User-Agent: ESP-TMEP/" VERSION " (https://github.com/ridercz/ESP-TMEP)\r\n");
