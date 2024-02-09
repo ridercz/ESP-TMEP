@@ -14,7 +14,7 @@
 #include <WiFiManager.h>
 #include "WebServerConfig.h"
 
-#define VERSION "2.3.0"                     // Version string
+#define VERSION "2.3.1"                     // Version string
 #define PIN_ONEWIRE D2                      // Pin where sensors are connected
 #define PIN_LED LED_BUILTIN                 // Pin where LED is connected
 #define LED_INTERVAL 250                    // LED blink interval in ms
@@ -56,7 +56,7 @@ float avgTemp;
 char deviceId[20];
 int pinTriesRemaining = PIN_LOCKOUT_LIMIT;
 int rolavg_index = 0;
-int rolavg_first = true;
+bool rolavg_first = true;
 float rolavg_values[ROLAVG_COUNT];
 
 // WiFiManager parameters
