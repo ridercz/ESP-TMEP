@@ -5,8 +5,9 @@ ESP-TMEP is firmware for ESP8266, which can measure temperature using DS18B20 an
 > Build video and basic information about this project (in Czech) is [on my blog](https://www.altair.blog/2022/09/esp-tmep) and the Z-TECH YouTube channel:
 
 * [Jak vyrobit Internetový teploměr pro TMEP.CZ ze třech součástek](https://www.youtube.com/watch?v=qh9V8oPX-iM)
-* [Aktualizace internetového teploměru ESP-TMEP](https://www.youtube.com/watch?v=DLWacm16rQw)
 * [Vylepšení internetového teploměru ESP-TMEP](https://www.youtube.com/watch?v=5T04NmTo4V4)
+* [Aktualizace internetového teploměru ESP-TMEP](https://www.youtube.com/watch?v=DLWacm16rQw)
+* [ESP-TMEP: Timeout konfigurace a průměrování hodnot](https://www.youtube.com/watch?v=3yfG-qK2-xU)
 
 ## Features and limitations
 
