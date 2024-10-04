@@ -5,6 +5,7 @@
 * www.rider.cz | www.altair.blog | github.com/ridercz/ESP-TMEP
 *****************************************************************************/
 
+#include <Arduino.h>
 #include <LittleFS.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -30,6 +31,21 @@
 #define WIFIMANAGER_DEBUG false             // Set to true to show WiFiManager debug messages
 #define WIFIMANAGER_TIMEOUT 180             // Set timeout of the config portal
 #define ROLAVG_COUNT 30                     // Set number of rolling average measurements
+
+// Declare function prototypes
+void handleHome();
+void handleCss();
+void handleApi();
+void handleReset();
+void handle404();
+void sendCommonHttpHeaders();
+bool sendValueToRemoteServer(char* remoteHost, char* remotePath);
+void blinkLed(int count);
+void saveConfigFile();
+bool loadConfigFile();
+void deleteConfigFile();
+void saveParamsCallback();
+void configModeCallback(WiFiManager* myWiFiManager);
 
 // Define configuration variables
 char remoteHost1[100] = REMOTE_HOST_DEFAULT;
