@@ -101,25 +101,20 @@ D2      | DQ      | yellow
 
 Additionally connect 4k7 resistor between VDD/5V and DQ/D2.
 
-![Board photo](ESP-TMEP-photo-01.jpg)
+![Board photo](Images/ESP-TMEP-photo-01.jpg)
 
-![Board photo](ESP-TMEP-photo-02.jpg)
+![Board photo](Images/ESP-TMEP-photo-02.jpg)
 
 ## Case
 
 I'm using this [WeMos D1 mini Enclosure](https://www.printables.com/model/44083-wemos-d1-mini-enclosure) by [100prznt](https://www.printables.com/social/23641-100prznt/about).
 
-![Enclosure photo](ESP-TMEP-photo-03.jpg)
+![Enclosure photo](Images/ESP-TMEP-photo-03.jpg)
 
-![Enclosure photo](ESP-TMEP-photo-04.jpg)
+![Enclosure photo](Images/ESP-TMEP-photo-04.jpg)
 
-![Enclosure photo](ESP-TMEP-photo-05.jpg)
+![Enclosure photo](Images/ESP-TMEP-photo-05.jpg)
 
 ## Software
 
-This firmware is using [ESP8266 Arduino Core 3.1.2](https://github.com/esp8266/Arduino). The following external libraries are required:
-
-* [ArduinoJson](https://arduinojson.org/) (tested with version 7.0.2)
-* [DallasTemperature](https://github.com/milesburton/Arduino-Temperature-Control-Library) (tested with version 3.9.0)
-* [OneWire](https://www.pjrc.com/teensy/td_libs_OneWire.html) (tested with version 2.3.7)
-* [WiFiManager](https://github.com/tzapu/WiFiManager) (tested with version 2.0.16-rc2)
+This firmware is built using PlatformIO IDE and the [ESP8266 Arduino Core](https://github.com/esp8266/Arduino). See [`platformio.ini`](ESP-TMEP/platformio.ini) for dependencies. 
