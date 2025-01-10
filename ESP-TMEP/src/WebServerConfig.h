@@ -20,9 +20,11 @@ h1 { font-size: 200%; font-weight: normal; margin: 0; padding: 1ex; background-c
 a:link, a:visited {color: #c00; }\
 a:hover, a:active {color: #f00; }\
 p { margin: 0; padding: 1ex; }\
-p.curtemp { font-size: 300%; }\
 p.link a { display: block; background-color: #fff; border: 1px solid #c00; padding: .5ex 1ex; width: 100%; text-decoration: none; margin-bottom: 1ex; box-sizing: border-box; }\
-footer { font-size: 80%; border-top: 1px solid #c00; color: #c00; padding: 1ex;}"
+article { background-color: #fff; border: 1px solid #ccc; margin: 1ex; padding: 1ex; }\
+article header { color: #c00; font-weight: bold; }\
+article p { font-size: 300%; }\
+footer { font-size: 80%; border-top: 1px solid #c00; color: #c00; padding: 1ex; }"
 
 // HTTP error page
 #define HTML_404 "<h1>404 Object Not Found</h1><p>Requested page was not found.</p>"

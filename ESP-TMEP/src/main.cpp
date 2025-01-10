@@ -263,10 +263,26 @@ void handleHome()
   Serial.println("Serving URI /");
 
   String html = HTML_HEADER;
-  html += "<h1>Current temperature</h1>";
-  html += "<p class=\"curtemp\">";
+  html += "<h1>Current values</h1>\n";
+  html += "<article>\n\t<header>Temperature</header>\n\t<p>";
   html += avgTemp;
-  html += " &deg;C</p>";
+  html += " &deg;C</p>\n</article>";
+
+#ifdef SUPPORT_HUMIDITY
+  html += "<article>\n\t<header>Humidity</header>\n\t<p>";
+  html += avgHumidity;
+  html += " % RH</p>\n</article>";
+#endif
+
+#ifdef SUPPORT_PRESSURE
+  html += "<article>\n\t<header>Pressure</header>\n\t<p>";
+  html += avgPressure;
+  html += " hPa</p>\n</article>";
+#endif
+
+  html += "<article>\n\t<header>Signal Strength</header>\n\t<p>";
+  html += WiFi.RSSI();
+  html += " dBm</p>\n</article>";
   html += HTML_HOME;
   html += HTML_FOOTER;
 
