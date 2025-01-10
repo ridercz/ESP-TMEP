@@ -486,7 +486,7 @@ void blinkLed(int count)
 void saveConfigFile()
 {
   // Create a JSON document
-  StaticJsonDocument<1024> json;
+  JsonDocument json;
   json["remoteHost1"] = remoteHost1;
   json["remoteHost2"] = remoteHost2;
   json["remoteHost3"] = remoteHost3;
@@ -552,7 +552,7 @@ bool loadConfigFile()
 
   // Parse JSON
   Serial.print("Parsing JSON file...");
-  StaticJsonDocument<1024> json;
+  JsonDocument json;
   DeserializationError error = deserializeJson(json, configFile);
   if (error)
   {
