@@ -18,8 +18,13 @@
 #include <DallasTemperature.h>
 #endif
 
+#ifdef SENSOR_DHT22
+#include <SimpleDHT.h>
+#define SUPPORT_HUMIDITY
+#endif
+
 #define VERSION "3.0.0"                    // Version string
-#define PIN_ONEWIRE D2                     // Pin where sensors are connected
+#define PIN_SENSOR D2                      // Pin where sensors are connected
 #define PIN_LED LED_BUILTIN                // Pin where LED is connected
 #define LED_INTERVAL 250                   // LED blink interval in ms
 #define LOOP_INTERVAL 2000                 // Loop delay interval in ms
@@ -57,12 +62,17 @@ char remoteHost3[100] = "";
 char configPin[20];
 
 // Define library static instances
-#ifdef SENSOR_DS18B20
-OneWire oneWire(PIN_ONEWIRE);
-DallasTemperature sensors(&oneWire);
-#endif
 WiFiManager wm;
 ESP8266WebServer server(HTTP_PORT);
+
+#ifdef SENSOR_DS18B20
+OneWire oneWire(PIN_SENSOR);
+DallasTemperature sensors(&oneWire);
+#endif
+
+#ifdef SENSOR_DHT22
+SimpleDHT22 dht22(PIN_SENSOR);
+#endif
 
 // Define variables
 unsigned long nextSendTime = 0;
@@ -107,9 +117,10 @@ void setup()
   sprintf(deviceId, "ESP-TMEP-%08X", ESP.getChipId());
   Serial.printf("Device ID: %s\n", deviceId);
 
-  // Show sensor type
+  // Start the DallasTemperature library
 #ifdef SENSOR_DS18B20
   Serial.println("Sensor type: DS18B20");
+  sensors.begin();
 #endif
   Serial.println();
 
@@ -165,9 +176,6 @@ void setup()
   Serial.print(", IP ");
   Serial.println(WiFi.localIP());
 
-  // Start the DallasTemperature library
-  sensors.begin();
-
   // Configure HTTP server
   Serial.print("Starting HTTP server...");
   server.on("/", handleHome);
@@ -200,7 +208,7 @@ void loop()
   // Blink LED once
   blinkLed(1);
 
-// Measure values
+  // Measure values
   measureValues();
 
   // Send values to remote server(s)
@@ -255,6 +263,52 @@ void measureValues()
     blinkLed(1);
     return;
   }
+}
+#endif
+
+#ifdef SENSOR_DHT22
+void measureValues()
+{
+  // Measure temperature and humidity
+  float curTemp = 0;
+  float curHumi = 0;
+  int err = dht22.read2(&curTemp, &curHumi, NULL);
+
+  if (err != SimpleDHTErrSuccess)
+  {
+    // Failed to measure temperature - blink twice
+    Serial.print("Temperature & humidity: Error ");
+    Serial.println(SimpleDHTErrCode(err));
+    blinkLed(1);
+    return;
+  }
+
+  // Compute rolling average values
+  rolavg_values_temperature[rolavg_index] = curTemp;
+  rolavg_values_humidity[rolavg_index] = curHumi;
+  int valueCount = rolavg_first ? rolavg_index + 1 : ROLAVG_COUNT;
+  float tempValueTotal = 0;
+  float humiValueTotal = 0;
+  for (int i = 0; i < valueCount; i++)
+  {
+    tempValueTotal += rolavg_values_temperature[i];
+    humiValueTotal += rolavg_values_humidity[i];
+  }
+  avgTemp = tempValueTotal / valueCount;
+  avgHumidity = humiValueTotal / valueCount;
+  rolavg_index++;
+  if (rolavg_index == ROLAVG_COUNT)
+  {
+    rolavg_index = 0;
+    rolavg_first = false;
+  }
+
+  Serial.printf("Current temperature = %.2f C, (avg = %.2f C), Current humidity = %.2f %% RH (avg = %.2f %% RH), across %i values\n",
+                curTemp,
+                avgTemp,
+                curHumi,
+                avgHumidity,
+                valueCount);
 }
 #endif
 
