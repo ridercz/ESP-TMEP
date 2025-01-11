@@ -57,8 +57,10 @@ char remoteHost3[100] = "";
 char configPin[20];
 
 // Define library static instances
+#ifdef SENSOR_DS18B20
 OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature sensors(&oneWire);
+#endif
 WiFiManager wm;
 ESP8266WebServer server(HTTP_PORT);
 
