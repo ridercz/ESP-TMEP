@@ -13,7 +13,10 @@ ESP-TMEP is firmware for ESP8266, which can measure temperature using DS18B20 an
 
 ### Features
 
-* Support for common DS18B20 temperature sensors.
+* Support for common temperature sensors:
+    * DS18B20 (temperature only)
+    * DHT22 (temperature and humidity)
+    * Extensible for any temperature, humidity and pressure sensors
 * User-friendly deployment (no need to modify code, easy configuration via web browser).
 * Can send values to three URLs.
 * Reboots every 29 hours to maintain stability.
@@ -21,7 +24,7 @@ ESP-TMEP is firmware for ESP8266, which can measure temperature using DS18B20 an
 
 ### Limitations
 
-* No server certificate validation is performed, because on ESP8266 it's practically impossible.
+* No server certificate validation is performed, because on ESP8266 it's practically impossible to do it right.
 * Internal web server is HTTP only; again, because proper HTTPS is almost impossible on ESP8266.
 * Some parameters are still hardcoded:
     * Interval in which data are measured and sent (always 60 seconds).
@@ -37,14 +40,20 @@ After first startup, the device boots into configuration mode. It creates an Wi-
 Name              | Example        | Size | Description
 ----------------- | -------------- | ---: | ------------------------------------
 Remote host name  | `demo.tmep.cz` | 100  | Host name part of the target URI
-Remote host path  | `/?temp=`      | 100  | Path part of the target URI
 Configuration PIN | `AbXy1234`     | 20   | PIN/password for configuration reset
 
-The target URI is constructed by joining the parameters and measured value in °C:
+The target URI is constructed by adding the following query string parameters:
 
-Scheme     | Host           | Path      | Value
----------- | -------------- | --------- | ------
-`https://` | `demo.tmep.cz` | `/?temp=` | `22.63`
+* `temp` - temperature in °C
+* `rssi` - Wi-Fi signal strength in dBm
+* `humi` - humidity in % RH (when supported by sensor)
+* `pres` - atmospheric pressure in hpa (when supported by sensor)
+
+Examples:
+
+* `https://demo.tmep.cz/?temp=12.34&rssi=-47`
+* `https://demo.tmep.cz/?temp=12.34&rssi=-47&humi=51.32`
+
 
 You can define up to three URLs.
 
@@ -53,8 +62,8 @@ You can define up to three URLs.
 Device then restarts to operational mode. In this mode, in addition to sending the measurement to remote servers, runs a local web server, offering the following services:
 
 URI              | Description
----------------- | ------------------------------------
-`/`              | Homepage showing current temperature
+---------------- | -------------------------------
+`/`              | Homepage showing current values
 `/api`           | JSON API endpoint
 `/reset?pin=XXX` | Switch to configuration mode
 
@@ -65,14 +74,21 @@ The response has the following format:
 ```json
 {
     "temp" : 22.63,
+    "rssi": -47,
+    "humi": 55.13,
+    "sensorType" : "DS18B20",
     "deviceId" : "ESP-TMEP-xxxxxxxx",
-    "version" : "2.2.0"
+    "version" : "3.0.0"
 }
 ```
 
-* `temp` is last measured temperature in °C
-* `deviceId` is unique device identifier (`xxxxxxxx` is chip ID)
-* `version` is firmware version
+* `temp` - temperature in °C.
+* `rssi` - Wi-Fi signal strength in dBm.
+* `humi` - humidity in % RH (when supported by sensor).
+* `pres` - atmospheric pressure in hpa (when supported by sensor).
+* `sensorType` - string identifying the sensor type. Currently either `DS18B20` or `DHT22`.
+* `deviceId` - unique device ID, based on ESP chip ID.
+* `version` - firmware version.
 
 ### LED status
 
@@ -89,42 +105,52 @@ fast blinking | Internal error in SPIFFS
 
 ## Hardware
 
-Any board with ESP8266 chip can be used. I'm using LOLIN/Wemos D1 mini.
+Any board with ESP8266 chip can be used. I'm using LOLIN/Wemos D1 Mini. As a sensor you can use either DS18B20 or DHT22/AM2302.
 
-Hardware connections (the _wire color_ column refers to common wire colors of the waterproofed version of DS18B20):
+Hardware connections (the _wire color_ column refers to common wire colors on sensor cables):
 
-D1 Mini | DS18B20 | Wire color
-------- | ------- | ----------
-G       | GND     | black
-5V      | VDD     | red
-D2      | DQ      | yellow
+D1 Mini             | Sensor  | Wire color
+------------------- | ------- | ----------
+**G** or **GND**    | **GND** | black
+**5V** or **VBUS**  | **VDD** | red
+**D2** or **4/SDA** | **DQ**  | yellow
 
-Additionally connect 4k7 resistor between VDD/5V and DQ/D2.
+### Using DS18B20 temperature sensor
+
+Connect as indicated above, additionally connect 4k7 resistor between VDD/5V and DQ/D2.
 
 ![Board photo](Images/ESP-TMEP-photo-01.jpg)
 
 ![Board photo](Images/ESP-TMEP-photo-02.jpg)
 
-## Case
+Use the `DS18B20` profile in PlatformIO or `#define SENSOR_DS18B20` manually.
 
-### Round variant
+### Using DHT22/AM2302 temperature and humidity sensor
 
-I'm using this [WeMos D1 mini Enclosure](https://www.printables.com/model/44083-wemos-d1-mini-enclosure) by [100prznt](https://www.printables.com/social/23641-100prznt/about).
+Connect as indicated above. Then use `DHT22` profile in PlatformIO or `#define SENSOR_DHT22`.
 
-![Enclosure photo](Images/ESP-TMEP-photo-03.jpg)
+### Other sensor types
 
-![Enclosure photo](Images/ESP-TMEP-photo-04.jpg)
+It's fairly easy to add support for other sensor types:
 
-![Enclosure photo](Images/ESP-TMEP-photo-05.jpg)
+First create new profile in `platformio.ini`, where you import the appropriate library and define `SENSOR_XXX` directive.
 
-### Square variant
+Then modify `main.cpp` using the `#ifdef` directives to:
+1. Initialize the sensor if/as required in `setup()`.
+2. Define `SUPPORT_HUMIDITY` and `SUPPORT_PRESSURE`, if the sensor supports measuring them.
+3. Create `measureValues()` for your sensor. Look into existing implementations for how to compute the rolling average.
+4. Modify `handleApi()` to return appropriate `sensorType` value via API.
 
-I also created way less pretty but simpler [case](Case/Square/), which can accommodate boards with external antenna.
-
-![Enclosure photo](Images/ESP-TMEP-photo-06.jpg)
-
-![Enclosure photo](Images/ESP-TMEP-photo-07.jpg)
+Heavier modification is needed if the sensor requires more than one GPIO pin to communicate.
 
 ## Software
 
 This firmware is built using PlatformIO IDE and the [ESP8266 Arduino Core](https://github.com/esp8266/Arduino). See [`platformio.ini`](ESP-TMEP/platformio.ini) for dependencies. 
+
+## Case
+
+All cases are for the Wemos D1 Mini board.
+
+* [Round](Round) - pretty round case for sensors with cable.
+* [Square-antenna](Square-antenna) - simple case for sensors with cable and hole for external antenna connector.
+* [Square-DHT](Square-DHT) - simple case for board-bases sensors, such as DHT22.
