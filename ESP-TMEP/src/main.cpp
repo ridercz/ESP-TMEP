@@ -383,6 +383,10 @@ void handleApi()
   json += ",\n\t\"sensorType\" : \"DS18B20\"";
 #endif
 
+#ifdef SENSOR_DHT22
+  json += ",\n\t\"sensorType\" : \"DHT22\"";
+#endif
+
   // Add device ID and version
   json += ",\n\t\"deviceId\" : \"";
   json += deviceId;
