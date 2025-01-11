@@ -1,6 +1,6 @@
 # ESP-TMEP
 
-ESP-TMEP is firmware for ESP8266, which can measure temperature using DS18B20 and send it to the [TMEP.CZ](https://www.tmep.cz/) online service or any other service that accepts HTTP GET requests.
+ESP-TMEP is firmware for ESP8266, which can measure environmental values (temperature, humidity and atmospheric pressure) and send it to the [TMEP.CZ](https://www.tmep.cz/) online service or any other service that accepts compatible HTTP GET requests.
 
 > Build video and basic information about this project (in Czech) is [on my blog](https://www.altair.blog/2022/09/esp-tmep) and the Z-TECH YouTube channel:
 
@@ -53,7 +53,6 @@ Examples:
 
 * `https://demo.tmep.cz/?temp=12.34&rssi=-47`
 * `https://demo.tmep.cz/?temp=12.34&rssi=-47&humi=51.32`
-
 
 You can define up to three URLs.
 
@@ -142,6 +141,8 @@ Then modify `main.cpp` using the `#ifdef` directives to:
 4. Modify `handleApi()` to return appropriate `sensorType` value via API.
 
 Heavier modification is needed if the sensor requires more than one GPIO pin to communicate.
+
+I'm generally willing to add support for other sensor types to the source code if you send me one example of the sensor and there is library for communication with it.
 
 ## Software
 
