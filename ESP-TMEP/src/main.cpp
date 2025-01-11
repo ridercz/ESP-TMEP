@@ -28,7 +28,7 @@
 #define REMOTE_PORT 443                    // Remote server HTTPS port
 #define REMOTE_HOST_DEFAULT "demo.tmep.cz" // Remote server name
 #define REMOTE_SEND_INTERVAL 60000         // Interval in ms in which temperature is sent to server
-#define JSON_CONFIG_FILE "/config-v5.json" // Configuration file name and version
+#define JSON_CONFIG_FILE "/config-v4.json" // Configuration file name and version
 #define PIN_LOCKOUT_LIMIT 3                // Number of PIN tries until lockout
 #define WIFIMANAGER_DEBUG false            // Set to true to show WiFiManager debug messages
 #define WIFIMANAGER_TIMEOUT 300            // Set timeout of the config portal in s (5 minutes)
