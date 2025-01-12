@@ -23,7 +23,7 @@
 #define SUPPORT_HUMIDITY
 #endif
 
-#define VERSION "3.0.0"                    // Version string
+#define VERSION "3.0.1"                    // Version string
 #define PIN_SENSOR D2                      // Pin where sensors are connected
 #define PIN_LED LED_BUILTIN                // Pin where LED is connected
 #define LED_INTERVAL 250                   // LED blink interval in ms
@@ -32,8 +32,9 @@
 #define REMOTE_TIMEOUT 5000                // Remote server response timeout in ms
 #define REMOTE_PORT 443                    // Remote server HTTPS port
 #define REMOTE_HOST_DEFAULT "demo.tmep.cz" // Remote server name
+#define REMOTE_PATH_DEFAULT "/"            // Remote server path
 #define REMOTE_SEND_INTERVAL 60000         // Interval in ms in which temperature is sent to server
-#define JSON_CONFIG_FILE "/config-v4.json" // Configuration file name and version
+#define JSON_CONFIG_FILE "/config-v5.json" // Configuration file name and version
 #define PIN_LOCKOUT_LIMIT 3                // Number of PIN tries until lockout
 #define WIFIMANAGER_DEBUG false            // Set to true to show WiFiManager debug messages
 #define WIFIMANAGER_TIMEOUT 300            // Set timeout of the config portal in s (5 minutes)
@@ -47,7 +48,7 @@ void handleApi();
 void handleReset();
 void handle404();
 void sendCommonHttpHeaders();
-bool sendValuesToRemoteServer(char *remoteHost);
+bool sendValuesToRemoteServer(char *remoteHost, char *remotePathPrefix);
 void blinkLed(int count);
 void saveConfigFile();
 bool loadConfigFile();
@@ -57,8 +58,11 @@ void configModeCallback(WiFiManager *myWiFiManager);
 
 // Define configuration variables
 char remoteHost1[100] = REMOTE_HOST_DEFAULT;
+char remotePath1[100] = REMOTE_PATH_DEFAULT;
 char remoteHost2[100] = "";
+char remotePath2[100] = REMOTE_PATH_DEFAULT;
 char remoteHost3[100] = "";
+char remotePath3[100] = REMOTE_PATH_DEFAULT;
 char configPin[20];
 
 // Define library static instances
@@ -85,10 +89,12 @@ int rolavg_index = 0;
 bool rolavg_first = true;
 float rolavg_values_temperature[ROLAVG_COUNT];
 float avgTemp;
+
 #ifdef SUPPORT_HUMIDITY
 float rolavg_values_humidity[ROLAVG_COUNT];
 float avgHumidity;
 #endif
+
 #ifdef SUPPORT_PRESSURE
 float rolavg_values_pressure[ROLAVG_COUNT];
 float avgPressure;
@@ -96,8 +102,11 @@ float avgPressure;
 
 // WiFiManager parameters
 WiFiManagerParameter remoteHost1TB("remote_host_1", "Remote host #1", remoteHost1, sizeof(remoteHost1));
+WiFiManagerParameter remotePath1TB("remote_path_1", "Remote path #2", remotePath1, sizeof(remotePath1));
 WiFiManagerParameter remoteHost2TB("remote_host_2", "Remote host #2", remoteHost2, sizeof(remoteHost2));
+WiFiManagerParameter remotePath2TB("remote_path_2", "Remote path #2", remotePath2, sizeof(remotePath2));
 WiFiManagerParameter remoteHost3TB("remote_host_3", "Remote host #3", remoteHost3, sizeof(remoteHost3));
+WiFiManagerParameter remotePath3TB("remote_path_3", "Remote path #3", remotePath3, sizeof(remotePath3));
 WiFiManagerParameter configPinTB("config_pin", "Configuration PIN", configPin, sizeof(configPin));
 
 // Initialization
@@ -140,8 +149,11 @@ void setup()
   wm.setSaveParamsCallback(saveParamsCallback);
   wm.setAPCallback(configModeCallback);
   wm.addParameter(&remoteHost1TB);
+  wm.addParameter(&remotePath1TB);
   wm.addParameter(&remoteHost2TB);
+  wm.addParameter(&remotePath2TB);
   wm.addParameter(&remoteHost3TB);
+  wm.addParameter(&remotePath3TB);
   wm.addParameter(&configPinTB);
   const char *menu[] = {"wifi"};
   wm.setMenu(menu, 1);
@@ -214,9 +226,9 @@ void loop()
   // Send values to remote server(s)
   if (millisNow > nextSendTime)
   {
-    sendValuesToRemoteServer(remoteHost1);
-    sendValuesToRemoteServer(remoteHost2);
-    sendValuesToRemoteServer(remoteHost3);
+    sendValuesToRemoteServer(remoteHost1, remotePath1);
+    sendValuesToRemoteServer(remoteHost2, remotePath2);
+    sendValuesToRemoteServer(remoteHost3, remotePath3);
 
     // Schedule next send
     nextSendTime = millisNow + REMOTE_SEND_INTERVAL;
@@ -471,17 +483,17 @@ void sendCommonHttpHeaders()
 
 // Remote server communication
 
-bool sendValuesToRemoteServer(char *remoteHost)
+bool sendValuesToRemoteServer(char *remoteHost, char *remotePathPrefix)
 {
-  if (*remoteHost == '\0')
+  if (*remoteHost == '\0' || *remotePathPrefix == '\0')
     return true;
 
   // Measure WiFi signal strength
   int32_t rssi = WiFi.RSSI();
 
   // Construct the URL path
-  char remotePath[100];
-  sprintf(remotePath, "/?temp=%.2f&rssi=%i", avgTemp, rssi);
+  char remotePath[200];
+  sprintf(remotePath, "%s?temp=%.2f&rssi=%i", remotePathPrefix, avgTemp, rssi);
 #ifdef SUPPORT_HUMIDITY
   char humPath[20];
   sprintf(humPath, "&humi=%.2f", avgHumidity);
@@ -548,8 +560,11 @@ void saveConfigFile()
   // Create a JSON document
   JsonDocument json;
   json["remoteHost1"] = remoteHost1;
+  json["remotePath1"] = remotePath1;
   json["remoteHost2"] = remoteHost2;
+  json["remotePath2"] = remotePath2;
   json["remoteHost3"] = remoteHost3;
+  json["remotePath3"] = remotePath3;
   json["configPin"] = configPin;
 
   // Open/create JSON file
@@ -620,8 +635,11 @@ bool loadConfigFile()
     return false;
   }
   strcpy(remoteHost1, json["remoteHost1"]);
+  strcpy(remotePath1, json["remotePath1"]);
   strcpy(remoteHost2, json["remoteHost2"]);
+  strcpy(remotePath2, json["remotePath2"]);
   strcpy(remoteHost3, json["remoteHost3"]);
+  strcpy(remotePath3, json["remotePath3"]);
   strcpy(configPin, json["configPin"]);
   Serial.println("OK");
   return true;
@@ -651,8 +669,11 @@ void saveParamsCallback()
 {
   Serial.println("Getting configuration from portal...");
   strncpy(remoteHost1, remoteHost1TB.getValue(), sizeof(remoteHost1));
+  strncpy(remotePath1, remotePath1TB.getValue(), sizeof(remotePath1));
   strncpy(remoteHost2, remoteHost2TB.getValue(), sizeof(remoteHost2));
+  strncpy(remotePath2, remotePath2TB.getValue(), sizeof(remotePath2));
   strncpy(remoteHost3, remoteHost3TB.getValue(), sizeof(remoteHost3));
+  strncpy(remotePath3, remotePath3TB.getValue(), sizeof(remotePath3));
   strncpy(configPin, configPinTB.getValue(), sizeof(configPin));
 
   Serial.println("Saving configuration to JSON...");
