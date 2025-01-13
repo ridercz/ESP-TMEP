@@ -67,7 +67,7 @@ char configPin[20];
 
 // Define library static instances
 WiFiManager wm;
-ESP8266WebServer server(HTTP_PORT);
+ESP8266WebServer httpServer(HTTP_PORT);
 
 #ifdef SENSOR_DS18B20
 OneWire oneWire(PIN_SENSOR);
@@ -126,12 +126,18 @@ void setup()
   sprintf(deviceId, "ESP-TMEP-%08X", ESP.getChipId());
   Serial.printf("Device ID: %s\n", deviceId);
 
-  // Start the DallasTemperature library
 #ifdef SENSOR_DS18B20
+  // Print sensor type and start the DallasTemperature library
   Serial.println("Sensor type: DS18B20");
   sensors.begin();
-#endif
   Serial.println();
+#endif
+
+#ifdef SENSOR_DHT22
+  // Print sensor type
+  Serial.println("Sensor type: DHT22");
+  Serial.println();
+#endif
 
   // Setup LED
   pinMode(PIN_LED, OUTPUT);
@@ -190,12 +196,12 @@ void setup()
 
   // Configure HTTP server
   Serial.print("Starting HTTP server...");
-  server.on("/", handleHome);
-  server.on("/styles.css", handleCss);
-  server.on("/api", handleApi);
-  server.on("/reset", handleReset);
-  server.onNotFound(handle404);
-  server.begin();
+  httpServer.on("/", handleHome);
+  httpServer.on("/styles.css", handleCss);
+  httpServer.on("/api", handleApi);
+  httpServer.on("/reset", handleReset);
+  httpServer.onNotFound(handle404);
+  httpServer.begin();
   Serial.println("OK");
   Serial.printf("Configuration PIN: %s\n", configPin);
 }
@@ -207,7 +213,7 @@ void loop()
   unsigned long millisNow = millis();
 
   // Process HTTP requests
-  server.handleClient();
+  httpServer.handleClient();
 
   // Reset if requested or if it's after reboot interval
   if (millisNow >= REBOOT_INTERVAL || (resetRequested && millisNow > resetTime))
@@ -240,9 +246,9 @@ void loop()
 
 // Measurement and averaging
 
-#ifdef SENSOR_DS18B20
 void measureValues()
 {
+#if defined(SENSOR_DS18B20)
   // Measure temperature
   DeviceAddress addr;
   sensors.requestTemperatures();
@@ -275,12 +281,7 @@ void measureValues()
     blinkLed(1);
     return;
   }
-}
-#endif
-
-#ifdef SENSOR_DHT22
-void measureValues()
-{
+#elif defined(SENSOR_DHT22)
   // Measure temperature and humidity
   float curTemp = 0;
   float curHumi = 0;
@@ -321,8 +322,10 @@ void measureValues()
                 curHumi,
                 avgHumidity,
                 valueCount);
-}
+#else
+#error "No sensor defined"
 #endif
+}
 
 // HTTP server URI handlers
 
@@ -355,7 +358,7 @@ void handleHome()
   html += HTML_FOOTER;
 
   sendCommonHttpHeaders();
-  server.send(200, "text/html", html);
+  httpServer.send(200, "text/html", html);
 }
 
 void handleCss()
@@ -363,7 +366,7 @@ void handleCss()
   Serial.println("Serving URI /styles.css");
 
   sendCommonHttpHeaders();
-  server.send(200, "text/css", HTML_CSS);
+  httpServer.send(200, "text/css", HTML_CSS);
 }
 
 void handleApi()
@@ -406,20 +409,20 @@ void handleApi()
 
   Serial.println("Serving URI /api");
   sendCommonHttpHeaders();
-  server.send(200, "application/json", json);
+  httpServer.send(200, "application/json", json);
 }
 
 void handle404()
 {
   Serial.print("Serving 404 for URI ");
-  Serial.println(server.uri());
+  Serial.println(httpServer.uri());
 
   String html = HTML_HEADER;
   html += HTML_404;
   html += HTML_FOOTER;
 
   sendCommonHttpHeaders();
-  server.send(404, "text/html", html);
+  httpServer.send(404, "text/html", html);
 }
 
 void handleReset()
@@ -431,7 +434,7 @@ void handleReset()
   html += "<h1>Configuration reset</h1>";
 
   // Compare PIN
-  String candidatePin = server.arg("pin");
+  String candidatePin = httpServer.arg("pin");
   String pin = String(configPin);
   bool performReset = pinTriesRemaining > 0 && pin.equals(candidatePin);
 
@@ -463,7 +466,7 @@ void handleReset()
 
   // Send response
   sendCommonHttpHeaders();
-  server.send(200, "text/html", html);
+  httpServer.send(200, "text/html", html);
 
   // Reset configuration if successfull
   if (performReset)
@@ -476,9 +479,9 @@ void handleReset()
 
 void sendCommonHttpHeaders()
 {
-  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  server.sendHeader("Expires", "-1");
-  server.sendHeader("Server", "ESP-TMEP/" VERSION);
+  httpServer.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  httpServer.sendHeader("Expires", "-1");
+  httpServer.sendHeader("Server", "ESP-TMEP/" VERSION);
 }
 
 // Remote server communication
