@@ -23,7 +23,7 @@
 #define SUPPORT_HUMIDITY
 #endif
 
-#define VERSION "3.0.1"                    // Version string
+#define VERSION "3.0.2"                    // Version string
 #define PIN_SENSOR D2                      // Pin where sensors are connected
 #define PIN_LED LED_BUILTIN                // Pin where LED is connected
 #define LED_INTERVAL 250                   // LED blink interval in ms
@@ -152,6 +152,7 @@ void setup()
 
   // Configure WiFiManager options
   wm.setDebugOutput(WIFIMANAGER_DEBUG);
+  wm.setHostname(deviceId);
   wm.setSaveParamsCallback(saveParamsCallback);
   wm.setAPCallback(configModeCallback);
   wm.addParameter(&remoteHost1TB);
